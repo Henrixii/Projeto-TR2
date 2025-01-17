@@ -40,14 +40,14 @@ def handle_peer(conn, addr):
                 if results:
                     conn.send(str(results).encode())
                 else:
-                    conn.send(b"Nenhum peer encontrado com o arquivo especificado.")
+                    conn.send(b"Nenhum peer encontrado com o arquivo especificado.\n")
             
             #Comando de adicionar arquivo ao peer
             elif command == "ADD_FILE":
                 peer_id, filename = args
                 if peer_id in peers:
                     peers[peer_id]["files"].append(filename)
-                    conn.send(b"Arquivo adicionado com sucesso.")
+                    conn.send(b"Arquivo adicionado com sucesso.\n")
         
 
         # Captura de erros
