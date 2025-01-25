@@ -1,71 +1,100 @@
 import socket
 import threading
+import json
 
-# Dicionário para armazenar peers
-peers = {}
 
-#Função de manipulação do peers
-def handle_peer(conn, addr):
-    print(f"Novo peer conectado: {addr}")
-    while True:
+class Tracker:
+    def __init__(self, host="0.0.0.0", port=5000):
+        self.host = host
+        self.port = port
+        self.peers = {}  # {peer_id: {"host": host, "port": port}}
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    def start(self):
+        """Inicia o tracker e aceita conexões de peers."""
+
         try:
-            # Receber dados do peer
-            data = conn.recv(1024).decode()
-            if not data:
-                break
-            command, *args = data.split()
+            self.socket.bind((self.host, self.port))
+            self.socket.listen(5)
+            print(f"Tracker escutando em {self.host}:{self.port}")
 
-            #Comando que retorna todos os peers registrados
-            if command == "LIST":
-                peers_info = str(peers)
-                conn.send(peers_info.encode())
-            
-            #Comando para registrar o peer
-            elif command == "REGISTER":
-                peer_id = args[0]  
-                ip, port = addr    
-                peers[peer_id] = {"ip": ip, "port": port, "files": []}
-                conn.send(b"Peer registrado com sucesso.\n")
-                print(f"Peer registrado: {peer_id}, IP: {ip}, Porta: {port}")
-            
-            #Comando de busca de arquivo
-            elif command == "SEARCH":
-                filename = args[0]
-                # Filtra os peers que possuem o arquivo e inclui suas informações
-                results = [
-                    {"peer_id": peer, "ip": info["ip"], "port": info["port"]}
-                    for peer, info in peers.items()
-                    if filename in info.get("files", [])
-                ]
-                if results:
-                    conn.send(str(results).encode())
-                else:
-                    conn.send(b"Nenhum peer encontrado com o arquivo especificado.\n")
-            
-            #Comando de adicionar arquivo ao peer
-            elif command == "ADD_FILE":
-                peer_id, filename = args
-                if peer_id in peers:
-                    peers[peer_id]["files"].append(filename)
-                    conn.send(b"Arquivo adicionado com sucesso.\n")
-        
-
-        # Captura de erros
+            while True:
+                conn, addr = self.socket.accept()
+                print(f"Nova conexão de {addr}")
+                threading.Thread(target=self.handle_peer, args=(conn, addr)).start()
         except Exception as e:
-            print(f"Erro: {e}")
-            #break
-    #conn.close()
+            print(f"Erro ao iniciar o tracker: {e}")
 
-# Função para iniciar o tracker
-def start_tracker(host="0.0.0.0", port=5000):
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((host, port))
-    server.listen(5)
-    print(f"Tracker escutando em {host}:{port}")
+    def handle_peer(self, conn, addr):
+        """Lida com a comunicação com um peer."""
 
-    while True:
-        conn, addr = server.accept()
-        threading.Thread(target=handle_peer, args=(conn, addr)).start()
+        try:
+            while True:
+                data = conn.recv(1024)
+                if not data:
+                    break
 
-if __name__ == "__main__":
-    start_tracker()
+                # Processa a mensagem recebida
+                try:
+                    message = json.loads(data.decode())
+                    command = message.get("command")
+
+                    if command == "REGISTER":
+                        self.register_peer(conn, message)
+                    elif command == "LIST":
+                        self.list_peers(conn)
+                    else:
+                        self.send_response(conn, {"status": "error", "message": "Comando inválido"})
+                except json.JSONDecodeError:
+                    self.send_response(conn, {"status": "error", "message": "Mensagem inválida"})
+        except Exception as e:
+            print(f"Erro na comunicação com o peer {addr}: {e}")
+        finally:
+            self.remove_peer(addr)
+            conn.close()
+            print(f"Conexão encerrada com {addr}")
+
+    def register_peer(self, conn, message):
+        """Registra um peer no tracker."""
+
+        try:
+            peer_id = message.get("peer_id")
+            peer_host = message.get("host")
+            peer_port = message.get("port")
+
+            if not peer_id or not peer_host or not peer_port:
+                self.send_response(conn, {"status": "error", "message": "Dados de registro incompletos"})
+                return
+
+            self.peers[peer_id] = {"host": peer_host, "port": int(peer_port)}
+            self.send_response(conn, {"status": "success", "message": "Registro feito com sucesso"})
+            print(f"Peer registrado: {peer_id}, IP: {peer_host}, Porta: {peer_port}")
+        except Exception as e:
+            print(f"Erro ao registrar peer: {e}")
+            self.send_response(conn, {"status": "error", "message": "Erro ao registrar peer"})
+
+    def list_peers(self, conn):
+        """Retorna a lista de peers registrados."""
+
+        try:
+            self.send_response(conn, {"status": "success", "peers": self.peers})
+        except Exception as e:
+            print(f"Erro ao listar peers: {e}")
+            self.send_response(conn, {"status": "error", "message": "Erro ao listar peers"})
+
+    def remove_peer(self, addr):
+        """Remove um peer da lista ao desconectar."""
+
+        for peer_id, info in list(self.peers.items()):
+            if info["host"] == addr[0] and info["port"] == addr[1]:
+                del self.peers[peer_id]
+                print(f"Peer removido: {peer_id}")
+                break
+
+    def send_response(self, conn, response):
+        """Envia uma resposta para o peer."""
+        
+        try:
+            conn.sendall(json.dumps(response).encode())
+        except Exception as e:
+            print(f"Erro ao enviar resposta: {e}")
