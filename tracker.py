@@ -2,7 +2,7 @@ import socket
 import threading
 import json
 
-
+print("teste")
 class Tracker:
     def __init__(self, host="0.0.0.0", port=5000):
         self.host = host
@@ -12,7 +12,7 @@ class Tracker:
 
     def start(self):
         """Inicia o tracker e aceita conexões de peers."""
-
+        print("iniciando tracker...")
         try:
             self.socket.bind((self.host, self.port))
             self.socket.listen(5)
@@ -98,3 +98,4 @@ class Tracker:
             conn.sendall(json.dumps(response).encode())
         except Exception as e:
             print(f"Erro ao enviar resposta: {e}")
+
