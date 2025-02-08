@@ -92,8 +92,6 @@ class Peer:
         except Exception as e:
             print(f"Erro ao conectar ao peer {peer_id}: {e}")
 
-
-
     def send_message_to_peer(self, recipient_id, message):
         """Envia uma mensagem de chat para um peer específico."""
 
@@ -108,7 +106,6 @@ class Peer:
         else:
             print(f"Peer {recipient_id} não está conectado.")
 
-
     def add_file(self, file_path):
         """Adiciona um arquivo real ao peer."""
         if not os.path.exists(file_path):
@@ -118,9 +115,26 @@ class Peer:
         filename = os.path.basename(file_path)  # Obtém o nome do arquivo
         self.files[filename] = file_path  # Armazena apenas o caminho do arquivo
         print(f"Arquivo '{filename}' adicionado ao peer.")
+        self.update_tracker_file_sharing(filename)
 
-
-
+    def update_tracker_file_sharing(self, filename):
+        """Atualiza o tracker com o volume de compartilhamento de arquivos."""
+        if self.tracker_conn:
+            try:
+                message = {
+                    "command": "ADD_FILE",
+                    "peer_id": f"{self.host}:{self.port}",
+                    "data_shared": os.path.getsize(self.files[filename])
+                }
+                self.tracker_conn.sendall(json.dumps(message).encode())
+                response = self.tracker_conn.recv(1024).decode()
+                data = json.loads(response)
+                if data.get("status") == "success":
+                    print(f"Volume de compartilhamento atualizado no tracker para o arquivo '{filename}'.")
+                else:
+                    print(f"Erro ao atualizar volume de compartilhamento: {data.get('message')}")
+            except Exception as e:
+                print(f"Erro ao atualizar volume de compartilhamento no tracker: {e}")
 
     def request_file(self, peer_id, filename, save_path):
         """Solicita o download de um arquivo de outro peer."""
@@ -165,9 +179,6 @@ class Peer:
         else:
             print(f"Peer {peer_id} não está conectado.")
 
-
-
-
     def request_file_list(self, peer_id):
         """Solicita a lista de arquivos de um peer conectado."""
         if peer_id in self.connected_peers:
@@ -182,7 +193,6 @@ class Peer:
                 print(f"Erro ao solicitar arquivos do peer {peer_id}: {e}")
         else:
             print(f"Peer {peer_id} não está conectado.")
-
 
     def handle_message(self, conn):
         """Processa mensagens recebidas de outros peers."""
@@ -242,7 +252,6 @@ class Peer:
             print(response)
         except Exception as e:
             print(f"Erro ao remover peer do Tracker: {e}")
-
 
     def start(self):
         """Inicia o peer para escutar conexões e lidar com mensagens."""
