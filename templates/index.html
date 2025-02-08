@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Chat e Arquivos</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f4f7fc;
+        }
+
+        #peer_list {
+            width: 250px;
+            background-color: #2f3b52;
+            color: white;
+            padding: 15px;
+            box-sizing: border-box;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #peer_list h3 {
+            margin-top: 0;
+        }
+
+        .peer-item {
+            background-color: #3b4c69;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .peer-item:hover {
+            background-color: #2a3b51;
+        }
+
+        .peer-item button {
+            margin-top: 10px;
+            padding: 8px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .peer-item button:hover {
+            background-color: #2980b9;
+        }
+
+        #content {
+            flex-grow: 3;
+            padding: 20px;
+            background-color: white;
+            box-sizing: border-box;
+        }
+    </style>
+    <script>
+        var socket = io();
+
+        function listPeers() {
+            socket.emit("list_peers");
+            socket.emit
+        }
+
+        socket.on("peer_list", function (peers) {
+            var peerBox = document.getElementById("peer_list");
+            peerBox.innerHTML = "<h3>Peers Disponíveis:</h3>";
+            for (var peer in peers) {
+                peerBox.innerHTML += `<div class='peer-item'>${peer} <button onclick="listFiles('${peer}')">Listar Arquivos</button> <button onclick="openChat('${peer}')">Chat</button></div>`;
+            }
+        });
+
+        function listFiles(peer) {
+            socket.emit("list_files");
+        }
+
+        socket.on("file_list", function (files) {
+            var fileBox = document.getElementById("content");
+            fileBox.innerHTML = "<h3>Arquivos Disponíveis:</h3>";
+            fileBox.innerHTML += files.map(file => `<p>${file}</p>`).join('');
+        });
+
+        function openChat(peer) {
+            var chatBox = document.getElementById("content");
+            chatBox.innerHTML = `<h3>Chat com ${peer}</h3>
+                <div id="chat_box" style="border: 1px solid #000; width: 100%; height: 200px; overflow-y: scroll;"></div>
+                <input type="text" id="message_input" placeholder="Digite sua mensagem" style="width: 80%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
+                <button onclick="sendMessage('${peer}')" style="padding: 10px; background-color: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">Enviar</button>`;
+        }
+
+        function sendMessage(peer) {
+            var message = document.getElementById("message_input").value;
+            socket.emit("send_message", { "message": message });
+            document.getElementById("message_input").value = "";
+        }
+
+        socket.on("chat_message", function (data) {
+            var chatBox = document.getElementById("chat_box");
+            if (chatBox) {
+                chatBox.innerHTML += "<p>" + data.message + "</p>";
+            }
+        });
+    </script>
+</head>
+
+<body>
+
+    <div style="display: flex;">
+        <div>
+            <div class="peer-item"><button onclick="listPeers()">Listar Peers</button></div>
+            <div id="peer_list"></div>
+        </div>
+        <div id="content"></div>
+    </div>
+</body>
+
+</html>
