@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# # Ativar o ambiente virtual (opcional, se estiver usando virtualenv)
+# source venv/bin/activate  
+
+# # Instalar dependências do projeto
+# pip install -r requirements.txt  
+
+
 echo "Iniciando o Tracker..."
 python start_tracker.py &
 TRACKER_PID=$!
