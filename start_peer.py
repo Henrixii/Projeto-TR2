@@ -13,6 +13,11 @@ PEER_PORT = int(sys.argv[1])
 peer = Peer(PEER_HOST, PEER_PORT)
 peer.connect_to_tracker("127.0.0.1", 5000)  # Conectar ao tracker na porta 5000
 
+#adiciona um arquivo
+peer.add_file("./arquivos/peer1/teste.txt")
+
+
+
 # Descobrir e conectar a outros peers
 peer.discover_and_connect_peers()
 

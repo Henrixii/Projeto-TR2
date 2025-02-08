@@ -1,6 +1,8 @@
 import socket
 import threading
 import json
+import os
+import time
 
 class Peer:
     def __init__(self, host, port):
@@ -107,10 +109,63 @@ class Peer:
             print(f"Peer {recipient_id} não está conectado.")
 
 
-    def add_file(self, filename, content):
-        """Adiciona um arquivo ao peer."""
-        self.files[filename] = content
+    def add_file(self, file_path):
+        """Adiciona um arquivo real ao peer."""
+        if not os.path.exists(file_path):
+            print(f"Erro: O arquivo '{file_path}' não existe.")
+            return
+
+        filename = os.path.basename(file_path)  # Obtém o nome do arquivo
+        self.files[filename] = file_path  # Armazena apenas o caminho do arquivo
         print(f"Arquivo '{filename}' adicionado ao peer.")
+
+
+
+
+    def request_file(self, peer_id, filename, save_path):
+        """Solicita o download de um arquivo de outro peer."""
+        if peer_id in self.connected_peers:
+            try:
+                conn = self.connected_peers[peer_id]
+                request = {"command": "DOWNLOAD", "filename": filename}
+                conn.sendall(json.dumps(request).encode())
+
+                # Primeiro, recebe e interpreta a resposta JSON com o tamanho do arquivo
+                response = conn.recv(1024).decode()
+                if not response:
+                    print("Erro: Resposta vazia recebida.")
+                    return
+
+                try:
+                    data = json.loads(response)
+                except json.JSONDecodeError:
+                    print("Erro: Resposta inválida recebida (não é JSON).")
+                    return
+
+                if data.get("status") == "success":
+                    file_size = data.get("size")
+                    print(f"Iniciando download do arquivo '{filename}' ({file_size} bytes)...")
+
+                    # Agora, recebe o conteúdo do arquivo
+                    with open(os.path.join(save_path, filename), "wb") as f:
+                        remaining = file_size
+                        while remaining > 0:
+                            chunk = conn.recv(min(1024, remaining))
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            remaining -= len(chunk)
+
+                    print(f"Download concluído: '{filename}' salvo em {save_path}")
+                else:
+                    print(f"Erro ao baixar arquivo: {data.get('message')}")
+
+            except Exception as e:
+                print(f"Erro ao solicitar arquivo do peer {peer_id}: {e}")
+        else:
+            print(f"Peer {peer_id} não está conectado.")
+
+
 
 
     def request_file_list(self, peer_id):
@@ -144,6 +199,29 @@ class Peer:
                 elif command == "LIST_FILES":
                     files_list = list(self.files.keys())
                     conn.sendall(json.dumps({"files": files_list}).encode())
+
+                elif command == "DOWNLOAD":
+                    filename = message.get("filename")
+                    if filename in self.files:
+                        file_path = self.files[filename]
+                        try:
+                            file_size = os.path.getsize(file_path)
+                            conn.sendall(json.dumps({"status": "success", "size": file_size}).encode())
+
+                            # Aguarda um pequeno intervalo para evitar mistura de JSON com binário
+                            time.sleep(0.2)
+
+                            # Agora, envia o arquivo em pedaços de 1024 bytes
+                            with open(file_path, "rb") as f:
+                                while chunk := f.read(1024):
+                                    conn.sendall(chunk)
+
+                            print(f"Arquivo '{filename}' enviado com sucesso.")
+                        except Exception as e:
+                            conn.sendall(json.dumps({"status": "error", "message": str(e)}).encode())
+                    else:
+                        conn.sendall(json.dumps({"status": "error", "message": "Arquivo não encontrado"}).encode())
+
                 else:
                     print("Comando desconhecido recebido.")
             except Exception as e:
