@@ -38,7 +38,7 @@ class Peer:
             print(f"Erro ao conectar ao tracker: {e}")
 
     def register_with_tracker(self):
-        """Registra o peer no tracker"""
+        """Registra o peer no tracker e tenta se conectar aos outros peers"""
 
         message = {
             "command": "REGISTER",
@@ -52,10 +52,12 @@ class Peer:
             data = json.loads(response)
             if data.get("status") == "success":
                 print("Registrado com sucesso no tracker.")
+                self.discover_and_connect_peers()  # Conectar-se imediatamente após registro
             else:
                 print("Erro ao registrar no tracker:", data.get("message"))
         except Exception as e:
             print(f"Erro ao registrar no tracker: {e}")
+
 
     def discover_and_connect_peers(self):
         """Obtém a lista de peers do tracker e tenta se conectar a eles."""
@@ -77,6 +79,46 @@ class Peer:
                 print("Erro ao obter lista de peers:", data.get("message"))
         except Exception as e:
             print(f"Erro ao descobrir peers: {e}")
+
+    def continuous_discovery(self):
+        """Executa a descoberta de peers continuamente até que todos estejam conectados"""
+        while True:
+            time.sleep(5)  # Espera 5 segundos antes de tentar descobrir novos peers
+            
+            if self.is_fully_connected():
+                print("[INFO] Todos os peers já estão conectados. Parando descoberta.")
+                break  # Sai do loop e para a thread
+            
+            self.discover_and_connect_peers()
+
+    def is_fully_connected(self):
+        """Verifica se já estamos conectados a todos os peers conhecidos no tracker"""
+        if not self.tracker_conn:
+            return False  # Se não está conectado ao tracker, não podemos saber
+
+        try:
+            # Pede a lista de peers ao tracker
+            self.tracker_conn.sendall(json.dumps({"command": "LIST"}).encode())
+            response = self.tracker_conn.recv(1024).decode()
+            data = json.loads(response)
+
+            if data.get("status") == "success":
+                peers = data.get("peers", {})
+
+                # Criamos um conjunto com todos os peers (menos nós mesmos)
+                all_peers = set(peers.keys()) - {f"{self.host}:{self.port}"}
+
+                # Se já estamos conectados a todos, retornamos True
+                return all_peers == set(self.connected_peers.keys())
+            else:
+                print("Erro ao obter lista de peers:", data.get("message"))
+                return False
+        except Exception as e:
+            print(f"Erro ao verificar conexão total: {e}")
+            return False
+
+
+
 
 
     def connect_to_peer(self, peer_id, peer_host, peer_port):
@@ -196,9 +238,19 @@ class Peer:
 
                 if command == "CHAT":
                     print(f"Mensagem recebida: {message.get('message')}")
+
                 elif command == "LIST_FILES":
                     files_list = list(self.files.keys())
                     conn.sendall(json.dumps({"files": files_list}).encode())
+                
+                elif command == "CONNECT":
+                    target_host = message.get("target_host")
+                    target_port = message.get("target_port")
+                    print(f"[DEBUG] Recebido pedido de conexão com {target_host}:{target_port}")
+                    if target_host and target_port:
+                        target_id = f"{target_host}:{target_port}"
+                        self.connect_to_peer(target_id, target_host, int(target_port))
+
 
                 elif command == "DOWNLOAD":
                     filename = message.get("filename")
@@ -245,15 +297,24 @@ class Peer:
 
 
     def start(self):
-        """Inicia o peer para escutar conexões e lidar com mensagens."""
+        """Inicia o peer para escutar conexões e lidar com mensagens em uma thread separada."""
         
-        try:
-            self.socket.bind((self.host, self.port))
-            self.socket.listen()
-            print(f"Peer escutando em {self.host}:{self.port}")
+        def listen():
+            try:
+                self.socket.bind((self.host, self.port))
+                self.socket.listen()
+                print(f"Peer escutando em {self.host}:{self.port}")
 
-            while True:
-                conn, addr = self.socket.accept()
-                threading.Thread(target=self.handle_message, args=(conn,)).start()
-        except Exception as e:
-            print(f"Erro ao iniciar o peer: {e}")
+                while True:
+                    conn, addr = self.socket.accept()
+                    threading.Thread(target=self.handle_message, args=(conn,)).start()
+            except Exception as e:
+                print(f"Erro ao iniciar o peer: {e}")
+
+        # Iniciar a thread de descoberta contínua
+        threading.Thread(target=self.continuous_discovery, daemon=True).start()
+
+        # Iniciar a thread do listener
+        threading.Thread(target=listen, daemon=True).start()
+
+                
