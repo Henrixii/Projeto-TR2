@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Chat e Arquivos</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f4f7fc;
+        }
+
+        #peer_list {
+            width: 250px;
+            background-color: #2f3b52;
+            color: white;
+            padding: 15px;
+            box-sizing: border-box;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 0;
+        }
+
+        #peer_list h3 {
+            margin-top: 0;
+        }
+
+        .peer-item {
+            background-color: #3b4c69;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .peer-item:hover {
+            background-color: #2a3b51;
+        }
+
+        .peer-item button {
+            margin-top: 10px;
+            padding: 8px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .peer-item button:hover {
+            background-color: #2980b9;
+        }
+
+        #content {
+            flex-grow: 2;
+            padding: 20px;
+            background-color: rgb(175, 143, 143);
+            box-sizing: border-box;
+        }
+
+        #container {
+            display: flex;
+            flex-direction: row;
+            height: 100vh;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="container">
+        <div id="peer_list">
+            <h3>Peers Disponíveis:</h3>
+            <div class='peer-item'>
+                <h4 class="name_peer">peer1</h4>
+                <button onclick="listFiles('peer1')">Listar Arquivos</button>
+                <button onclick="openChat('peer1')">Chat</button>
+            </div>
+            <div class='peer-item'>
+                <h4 class="name_peer">peer1</h4>
+                <button onclick="listFiles('peer1')">Listar Arquivos</button>
+                <button onclick="openChat('peer1')">Chat</button>
+            </div>
+        </div>
+        <div id="content">
+            <h3>Arquivos Disponíveis:</h3>
+        </div>
+    </div>
+</body>
+
+</html>
