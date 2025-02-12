@@ -121,8 +121,6 @@ class Peer:
         print(f"Arquivo '{filename}' adicionado ao peer.")
 
 
-
-
     def request_file(self, peer_id, filename, save_path):
         """Solicita o download de um arquivo de outro peer."""
         if peer_id in self.connected_peers:
@@ -262,6 +260,7 @@ class Peer:
             print(response)
         except Exception as e:
             print(f"Erro ao remover peer do Tracker: {e}")
+
 
     def notify_peers_before_exit(self):
         """Notifica todos os peers conectados que este peer está saindo."""
