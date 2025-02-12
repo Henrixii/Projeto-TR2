@@ -12,7 +12,6 @@ peer = Peer(PEER_HOST, PEER_PORT)
 peer.connect_to_tracker("127.0.0.1", 5000)
 peer.add_file("./arquivos/peer1/teste.txt")
 
-peer.discover_and_connect_peers()
 peer.start()  # Agora roda em segundo plano
 
 # Loop interativo para aceitar comandos do usuário
@@ -24,8 +23,10 @@ while True:
         mensagem = input("Digite a mensagem: ")
         peer.send_message_to_peer(recipient_id, mensagem)
 
-   # elif comando == "conectar":
-        
+    elif comando == "conectar":
+        print("[INFO] Iniciando conexão com peers disponíveis no tracker...")
+        peer.discover_and_connect_peers()
+    
     elif comando == "listar":
         peer.list_connected_peers()
 
