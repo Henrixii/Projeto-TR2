@@ -137,6 +137,26 @@ class Tracker:
         # Enviar lista de peers conectados
         self.list_peers(conn)
 
+        # Notificar um peer existente para se conectar ao novo peer
+        existing_peers = list(self.peers.keys())
+        if len(existing_peers) > 1:  # Se já houver pelo menos 1 peer além do novo
+            for existing_peer_id in existing_peers:
+                if existing_peer_id != peer_id:  # Evita escolher o novo peer
+                    existing_peer = self.peers[existing_peer_id]
+                    try:
+                        print(f"[DEBUG] Notificando {existing_peer_id} para se conectar com {peer_id}")
+                        existing_peer["conn"].sendall(json.dumps({
+                            "command": "CONNECT",
+                            "target_host": peer_host,
+                            "target_port": peer_port
+                        }).encode())
+                        break  # Enviar apenas para um peer
+                    except Exception as e:
+                        print(f"❌ Erro ao enviar pedido de conexão para {existing_peer_id}: {e}")
+
+
+
+
     def list_peers(self, conn):
         """
         Envia a lista de peers registrados para um peer.
@@ -150,47 +170,22 @@ class Tracker:
         peers_list = {peer_id: {"host": info["host"], "port": info["port"]} for peer_id, info in self.peers.items()}
         self.send_response(conn, {"status": "success", "peers": peers_list})
 
-    def connect_peers(self, conn, message):
-        """
-        Tenta conectar dois peers diretamente.
+    def connect_to_peer(self, peer_id, peer_host, peer_port):
+        """Estabelece uma conexão com outro peer e mantém a conexão aberta."""
+        try:
+            print(f"[DEBUG] Tentando conectar ao peer {peer_id} em {peer_host}:{peer_port}")
+            
+            conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            conn.connect((peer_host, int(peer_port)))
+            
+            self.connected_peers[peer_id] = conn
+            print(f"✅ Conectado ao peer {peer_id} em {peer_host}:{peer_port}")
 
-        Parâmetros:
-        conn (objeto): O objeto de conexão para enviar a resposta.
-        message (dict): Um dicionário contendo os IDs dos peers de origem e destino.
+            # Criar uma thread para ouvir mensagens desse peer
+            threading.Thread(target=self.handle_message, args=(conn,), daemon=True).start()
+        except Exception as e:
+            print(f"❌ Erro ao conectar ao peer {peer_id}: {e}")
 
-        O dicionário message deve ter as seguintes chaves:
-            - source_id (str): O ID do peer de origem.
-            - target_id (str): O ID do peer de destino.
-
-        Se o peer de origem ou destino não for encontrado na lista de peers,
-        uma resposta de erro é enviada através da conexão.
-
-        Se ambos os peers forem encontrados, uma resposta de sucesso é enviada com
-        as informações de host e porta do peer de destino.
-
-        Resposta:
-        Um dicionário com a seguinte estrutura é enviado através da conexão:
-            - status (str): "success" ou "error".
-            - message (str, opcional): Mensagem de erro se o status for "error".
-            - target_host (str, opcional): O host do peer de destino se o status for "success".
-            - target_port (int, opcional): A porta do peer de destino se o status for "success".
-        """
-        source_id = message.get("source_id")
-        target_id = message.get("target_id")
-
-        if source_id not in self.peers or target_id not in self.peers:
-            self.send_response(conn, {"status": "error", "message": "Peer não encontrado"})
-            return
-
-        source_info = self.peers[source_id]
-        target_info = self.peers[target_id]
-
-        response = {
-            "status": "success",
-            "target_host": target_info["host"],
-            "target_port": target_info["port"]
-        }
-        self.send_response(conn, response)
 
     def remove_peer(self, conn, message):
         """
