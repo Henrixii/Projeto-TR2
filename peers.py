@@ -6,23 +6,6 @@ import time
 
 class Peer:
     def __init__(self, host, port):
-        """
-        Inicializa uma nova instância de Peer.
-
-        Args:
-            host (str): O nome do host ou endereço IP do peer.
-            port (int): O número da porta na qual o peer irá escutar conexões.
-
-        Atributos:
-            host (str): O nome do host ou endereço IP do peer.
-            port (int): O número da porta na qual o peer irá escutar conexões.
-            socket (socket.socket): O objeto socket para comunicação de rede.
-            tracker_conn (None ou socket.socket): A conexão com o servidor tracker, se houver.
-            tracker_host (None ou str): O nome do host ou endereço IP do servidor tracker, se houver.
-            tracker_port (None ou int): O número da porta do servidor tracker, se houver.
-            connected_peers (dict): Um dicionário de peers conectados, com IDs de peers como chaves e objetos de conexão como valores.
-            files (dict): Um dicionário de arquivos disponíveis para compartilhamento.
-        """
         self.host = host
         self.port = port
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -30,58 +13,20 @@ class Peer:
         self.tracker_host = None
         self.tracker_port = None
         self.connected_peers = {}  # {peer_id: connection}
-        self.peer_metrics = {}  # Armazena métricas de cada peer
         self.files = {}  # Arquivos disponíveis para compartilhamento
 
     def list_connected_peers(self):
-        """
-        Lista os peers atualmente conectados.
-
-        Este método verifica o atributo `connected_peers` e imprime os IDs de todos os peers conectados.
-        Se nenhum peer estiver conectado, imprime uma mensagem indicando que não há peers conectados.
-        """
+        """Lista os peers atualmente conectados."""
         if self.connected_peers:
             print("Peers conectados:")
             for peer_id in self.connected_peers.keys():
                 print(f"- {peer_id}")
         else:
             print("Nenhum peer conectado.")
-import unittest
 
-class TestPeerIncentiveMechanism(unittest.TestCase):
-    def setUp(self):
-        self.peer = Peer("localhost", 8000)
-
-    def test_update_peer_metrics(self):
-        self.peer.update_peer_metrics("peer1", shared_volume=100, connection_time=10)
-        self.assertEqual(self.peer.peer_metrics["peer1"]["shared_volume"], 100)
-        self.assertEqual(self.peer.peer_metrics["peer1"]["connection_time"], 10)
-
-    def test_calculate_incentive_score(self):
-        self.peer.update_peer_metrics("peer1", shared_volume=100, connection_time=10)
-        score = self.peer.calculate_incentive_score("peer1")
-        expected_score = 100 * 0.7 + 10 * 0.3
-        self.assertEqual(score, expected_score)
-
-    def test_prioritize_peers(self):
-        self.peer.update_peer_metrics("peer1", shared_volume=100, connection_time=10)
-        self.peer.update_peer_metrics("peer2", shared_volume=50, connection_time=20)
-        prioritized_peers = self.peer.prioritize_peers()
-        self.assertEqual(prioritized_peers, ["peer1", "peer2"])
-
-if __name__ == "__main__":
-    unittest.main()
     def connect_to_tracker(self, tracker_host, tracker_port):
-        """
-        Conecta ao tracker e registra o peer.
+        """Conecta ao tracker e registra o peer"""
 
-        Args:
-            tracker_host (str): O nome do host ou endereço IP do tracker.
-            tracker_port (int): O número da porta do tracker.
-
-        Raises:
-            Exception: Se houver um erro ao conectar ao tracker.
-        """
         self.tracker_host = tracker_host
         self.tracker_port = tracker_port
 
@@ -93,18 +38,8 @@ if __name__ == "__main__":
             print(f"Erro ao conectar ao tracker: {e}")
 
     def register_with_tracker(self):
-        """
-        Registra o peer no tracker.
+        """Registra o peer no tracker e tenta se conectar aos outros peers"""
 
-        Este método envia uma mensagem de registro para o tracker contendo as informações
-        de host e porta do peer. Ele aguarda uma resposta do tracker e imprime uma mensagem
-        de sucesso se o registro for bem-sucedido, ou uma mensagem de erro se o registro
-        falhar.
-
-        Raises:
-            Exception: Se houver um erro durante o processo de registro, uma exceção
-                   é capturada e uma mensagem de erro é impressa.
-        """
         message = {
             "command": "REGISTER",
             "peer_id": f"{self.host}:{self.port}",
@@ -124,21 +59,7 @@ if __name__ == "__main__":
 
 
     def discover_and_connect_peers(self):
-        """
-        Obtém a lista de peers do tracker e tenta se conectar a eles.
-
-        Este método envia uma solicitação ao tracker para obter a lista de peers disponíveis.
-        Se a conexão com o tracker não estiver estabelecida, imprime uma mensagem de erro e retorna.
-        Se a solicitação for bem-sucedida, itera pela lista de peers e tenta se conectar a cada um,
-        evitando conectar-se a si mesmo.
-
-        Raises:
-            Exception: Se houver um erro ao comunicar-se com o tracker ou ao processar a resposta.
-
-        Prints:
-            Mensagens de erro se não estiver conectado ao tracker, se houver um erro ao obter a lista de peers,
-            ou se houver uma exceção durante o processo.
-        """
+        """Obtém a lista de peers do tracker e tenta se conectar a eles."""
         if not self.tracker_conn:
             print("Não está conectado ao tracker.")
             return
@@ -217,21 +138,7 @@ if __name__ == "__main__":
 
 
     def connect_to_peer(self, peer_id, peer_host, peer_port):
-        """
-        Estabelece uma conexão com outro peer e mantém a conexão aberta.
-
-        Args:
-            peer_id (str): Identificador do peer ao qual se conectar.
-            peer_host (str): Endereço do host do peer.
-            peer_port (int): Porta do peer.
-
-        Raises:
-            Exception: Se ocorrer um erro ao tentar conectar ao peer.
-
-        Side Effects:
-            Adiciona a conexão ao dicionário `self.connected_peers`.
-            Inicia uma nova thread para ouvir mensagens do peer conectado.
-        """
+        """Estabelece uma conexão com outro peer e mantém a conexão aberta."""
         try:
             conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             conn.connect((peer_host, int(peer_port)))
@@ -243,33 +150,11 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Erro ao conectar ao peer {peer_id}: {e}")
 
-    def calculate_incentive_score(self, peer_id):
-        metrics = self.peer_metrics.get(peer_id, {"shared_volume": 0, "connection_time": 0})
-        shared_volume = metrics["shared_volume"]
-        connection_time = metrics["connection_time"]
-        # Fórmula de pontuação híbrida (ajuste conforme necessário)
-        score = shared_volume * 0.7 + connection_time * 0.3
-        return score
 
-    def prioritize_peers(self):
-        sorted_peers = sorted(self.connected_peers.keys(), key=self.calculate_incentive_score, reverse=True)
-        return sorted_peers
 
     def send_message_to_peer(self, recipient_id, message):
-        """
-        Envia uma mensagem de chat para um peer específico.
+        """Envia uma mensagem de chat para um peer específico."""
 
-        Args:
-            recipient_id (str): O ID do peer destinatário.
-            message (str): A mensagem de chat a ser enviada.
-
-        Raises:
-            Exception: Se houver um erro ao enviar a mensagem.
-
-        Prints:
-            str: Mensagem de confirmação se a mensagem for enviada com sucesso.
-            str: Mensagem de erro se o peer destinatário não estiver conectado ou se houver um erro ao enviar a mensagem.
-        """
         if recipient_id in self.connected_peers:
             try:
                 payload = {"command": "CHAT", "message": message}
@@ -281,24 +166,11 @@ if __name__ == "__main__":
         else:
             print(f"Peer {recipient_id} não está conectado.")
 
+
     def add_file(self, file_path):
-        """
-        Adiciona um arquivo real ao peer.
+        """Adiciona um arquivo ao peer para compartilhamento."""
+        import os
 
-        Args:
-            file_path (str): O caminho do arquivo a ser adicionado.
-
-        Returns:
-            None
-
-        Prints:
-            Mensagem de erro se o arquivo não existir.
-            Mensagem de sucesso se o arquivo for adicionado com sucesso.
-
-        Side Effects:
-            Atualiza o dicionário self.files com o nome do arquivo como chave e o caminho do arquivo como valor.
-            Chama o método update_tracker_file_sharing com o nome do arquivo.
-        """
         if not os.path.exists(file_path):
             print(f"Erro: O arquivo '{file_path}' não existe.")
             return
@@ -308,60 +180,9 @@ if __name__ == "__main__":
         print(f"Arquivo '{filename}' adicionado ao peer para compartilhamento.")
 
 
-        self.files[filename] = file_path  # Armazena apenas o caminho do arquivo
-        print(f"Arquivo '{filename}' adicionado ao peer.")
-        self.update_tracker_file_sharing(filename)
-
-    def update_tracker_file_sharing(self, filename):
-        """
-        Atualiza o tracker com o volume de compartilhamento de arquivos para um determinado arquivo.
-
-        Args:
-            filename (str): O nome do arquivo para atualizar o volume de compartilhamento.
-
-        Raises:
-            Exception: Se houver um erro ao atualizar o volume de compartilhamento no tracker.
-
-        Returns:
-            None
-        """
-        if self.tracker_conn:
-            try:
-                message = {
-                    "command": "ADD_FILE",
-                    "peer_id": f"{self.host}:{self.port}",
-                    "data_shared": os.path.getsize(self.files[filename])
-                }
-                self.tracker_conn.sendall(json.dumps(message).encode())
-                response = self.tracker_conn.recv(1024).decode()
-                data = json.loads(response)
-                if data.get("status") == "success":
-                    print(f"Volume de compartilhamento atualizado no tracker para o arquivo '{filename}'.")
-                else:
-                    print(f"Erro ao atualizar volume de compartilhamento: {data.get('message')}")
-            except Exception as e:
-                print(f"Erro ao atualizar volume de compartilhamento no tracker: {e}")
 
     def request_file(self, peer_id, filename, save_path):
-        """
-        Solicita o download de um arquivo de outro peer.
-
-        Parâmetros:
-        peer_id (str): O ID do peer do qual solicitar o arquivo.
-        filename (str): O nome do arquivo a ser baixado.
-        save_path (str): O caminho local onde o arquivo baixado será salvo.
-
-        Retorna:
-        None
-
-        Levanta:
-        Exception: Se houver um erro no processo de solicitação do arquivo.
-
-        O método envia uma solicitação de download para o peer especificado e lida com a resposta.
-        Se o peer responder com status de sucesso, o arquivo é baixado em pedaços e salvo
-        no caminho especificado. Se o peer não estiver conectado ou ocorrer um erro, mensagens
-        de erro apropriadas são impressas.
-        """
+        """Solicita o download de um arquivo de outro peer."""
         if peer_id in self.connected_peers:
             try:
                 conn = self.connected_peers[peer_id]
@@ -403,19 +224,11 @@ if __name__ == "__main__":
         else:
             print(f"Peer {peer_id} não está conectado.")
 
+
+
+
     def request_file_list(self, peer_id):
-        """
-        Solicita a lista de arquivos de um peer conectado.
-
-        Args:
-            peer_id (str): O identificador do peer do qual solicitar a lista de arquivos.
-
-        Raises:
-            Exception: Se houver um erro ao solicitar a lista de arquivos do peer.
-
-        Prints:
-            A lista de arquivos disponíveis do peer especificado ou uma mensagem de erro se a solicitação falhar.
-        """
+        """Solicita a lista de arquivos de um peer conectado."""
         if peer_id in self.connected_peers:
             try:
                 conn = self.connected_peers[peer_id]
@@ -429,21 +242,9 @@ if __name__ == "__main__":
         else:
             print(f"Peer {peer_id} não está conectado.")
 
+
     def handle_message(self, conn):
-        """
-        Processa mensagens recebidas de outros peers.
-
-        Args:
-            conn (socket.socket): Conexão de socket com o peer.
-
-        Comandos suportados:
-            - "CHAT": Exibe a mensagem recebida no console.
-            - "LIST_FILES": Envia uma lista de arquivos disponíveis para o peer.
-            - "DOWNLOAD": Envia o arquivo solicitado para o peer, se disponível.
-
-        Tratamento de erros:
-            - Envia uma mensagem de erro em caso de falha ao processar o comando ou enviar o arquivo.
-        """
+        """Processa mensagens recebidas de outros peers."""
         while True:
             try:
                 data = conn.recv(1024)
@@ -451,10 +252,6 @@ if __name__ == "__main__":
                     break
                 message = json.loads(data.decode())
                 command = message.get("command")
-                peer_id = message.get("peer_id")
-
-                # Update connection time metric
-                self.update_peer_metrics(peer_id, shared_volume=0, connection_time=1)
 
                 if command == "CHAT":
                     print(f"Mensagem recebida: {message.get('message')}")
@@ -498,8 +295,6 @@ if __name__ == "__main__":
                                     conn.sendall(chunk)
 
                             print(f"Arquivo '{filename}' enviado com sucesso.")
-                            # Update shared volume metric
-                            self.update_peer_metrics(peer_id, shared_volume=file_size, connection_time=0)
                         except Exception as e:
                             conn.sendall(json.dumps({"status": "error", "message": str(e)}).encode())
                     else:
@@ -512,15 +307,7 @@ if __name__ == "__main__":
                 break
 
     def remove_from_tracker(self):
-        """
-        Remove este peer do Tracker e notifica os peers conectados.
-        Este método verifica se o peer está conectado ao tracker. Se estiver conectado, ele envia um 
-        comando "REMOVE" junto com o ID do peer para o tracker. Em seguida, aguarda uma resposta 
-        do tracker e a imprime. Se não estiver conectado ou se ocorrer um erro durante a 
-        comunicação, imprime uma mensagem de erro apropriada.
-        Levanta:
-            Exception: Se houver um erro ao enviar o pedido ou ao receber a resposta.
-        """
+        """Remove este peer do Tracker e notifica os peers conectados."""
         if not self.tracker_conn:
             print("Não está conectado ao tracker.")
             return
@@ -537,11 +324,6 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Erro ao remover peer do Tracker: {e}")
 
-    def update_peer_metrics(self, peer_id, shared_volume, connection_time):
-        if peer_id not in self.peer_metrics:
-            self.peer_metrics[peer_id] = {"shared_volume": 0, "connection_time": 0}
-        self.peer_metrics[peer_id]["shared_volume"] += shared_volume
-        self.peer_metrics[peer_id]["connection_time"] += connection_time
 
     def notify_peers_before_exit(self):
         """Notifica todos os peers conectados que este peer está saindo."""
@@ -558,14 +340,8 @@ if __name__ == "__main__":
 
 
     def start(self):
-        """
-        Inicia o peer para escutar conexões e lidar com mensagens em uma thread separada.
-        Este método vincula o socket do peer ao host e porta especificados,
-        começa a escutar conexões de entrada e cria uma nova thread
-        para lidar com cada mensagem recebida.
-        Levanta:
-            Exception: Se houver um erro ao iniciar o peer.
-        """        
+        """Inicia o peer para escutar conexões e lidar com mensagens em uma thread separada."""
+        
         def listen():
             try:
                 self.socket.bind((self.host, self.port))

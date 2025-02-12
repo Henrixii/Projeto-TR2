@@ -1,7 +1,6 @@
 import socket
 import threading
 import json
-from mecanismo_incentivo import TrackerIncentive
 
 class Tracker:
     def __init__(self, host="0.0.0.0", port=5000):
@@ -16,13 +15,11 @@ class Tracker:
             host (str): O nome do host ou endereço IP ao qual o tracker está vinculado.
             port (int): O número da porta ao qual o tracker está vinculado.
             peers (dict): Um dicionário para armazenar informações dos peers com peer_id como chave.
-            incentive_tracker (TrackerIncentive): Uma instância de TrackerIncentive para gerenciar incentivos.
             socket (socket.socket): Um objeto socket para comunicação de rede.
         """
         self.host = host
         self.port = port
         self.peers = {}  # {peer_id: {"host": host, "port": port, "conn": conn}}
-        self.incentive_tracker = TrackerIncentive()
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     def start(self):
@@ -116,7 +113,6 @@ class Tracker:
         Ações:
             - Verifica se os dados de registro estão completos.
             - Registra o peer no tracker.
-            - Registra o peer no sistema de incentivos.
             - Envia uma resposta de sucesso ou erro ao peer.
             - Envia a lista de peers conectados ao peer.
         """
@@ -129,7 +125,6 @@ class Tracker:
             return
 
         self.peers[peer_id] = {"host": peer_host, "port": int(peer_port), "conn": conn}
-        self.incentive_tracker.register_peer(peer_id)
         print(f"Peer registrado: {peer_id}, IP: {peer_host}, Porta: {peer_port}")
 
         self.send_response(conn, {"status": "success", "message": "Registro feito com sucesso"})
@@ -222,10 +217,8 @@ class Tracker:
             - "error" se o peer não foi encontrado.
         """
         peer_id = message.get("peer_id")
-        data_shared = message.get("data_shared", 0)
 
         if peer_id in self.peers:
-            self.incentive_tracker.update_peer_sharing(peer_id, data_shared)
             self.send_response(conn, {"status": "success", "message": "Volume de compartilhamento atualizado"})
         else:
             self.send_response(conn, {"status": "error", "message": "Peer não encontrado"})
