@@ -79,6 +79,63 @@ class Peer:
         except Exception as e:
             print(f"Erro ao descobrir peers: {e}")
 
+    def search_file(self, filename):
+        """Busca um arquivo entre os peers conectados e lista quais possuem o arquivo."""
+        
+        if not self.tracker_conn:
+            print("[ERRO] Não está conectado ao tracker.")
+            return
+        
+        peers_with_file = []
+
+        try:
+            # Pede a lista de peers ao tracker
+            self.tracker_conn.sendall(json.dumps({"command": "LIST"}).encode())
+            response = self.tracker_conn.recv(1024).decode()
+            data = json.loads(response)
+
+            if data.get("status") == "success":
+                peers = data.get("peers", {})
+
+                for peer_id, info in peers.items():
+                    if peer_id != f"{self.host}:{self.port}":  # Evita perguntar a si mesmo
+                        if self.query_peer_for_file(peer_id, info["host"], info["port"], filename):
+                            peers_with_file.append(peer_id)
+
+            if peers_with_file:
+                print(f"\n[✅] O arquivo '{filename}' está disponível nos seguintes peers:")
+                for peer in peers_with_file:
+                    print(f"- {peer}")
+            else:
+                print(f"\n[❌] Nenhum peer possui o arquivo '{filename}'.")
+
+        except Exception as e:
+            print(f"[ERRO] Falha ao buscar arquivo: {e}")
+
+
+    def query_peer_for_file(self, peer_id, peer_host, peer_port, filename):
+        """Consulta um peer específico para saber se ele tem o arquivo."""
+        try:
+            conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            conn.connect((peer_host, int(peer_port)))
+
+            # Envia a solicitação de busca de arquivo
+            conn.sendall(json.dumps({"command": "LIST_FILES"}).encode())
+
+            # Recebe a resposta e verifica se o arquivo está disponível
+            response = conn.recv(1024).decode()
+            data = json.loads(response)
+
+            conn.close()
+
+            if filename in data.get("files", []):
+                return True  # Peer tem o arquivo
+            return False  # Peer não tem o arquivo
+
+        except Exception as e:
+            print(f"[ERRO] Não foi possível consultar {peer_id}: {e}")
+            return False
+
 
     def connect_to_peer(self, peer_id, peer_host, peer_port):
         """Estabelece uma conexão com outro peer e mantém a conexão aberta."""
@@ -111,14 +168,17 @@ class Peer:
 
 
     def add_file(self, file_path):
-        """Adiciona um arquivo real ao peer."""
+        """Adiciona um arquivo ao peer para compartilhamento."""
+        import os
+
         if not os.path.exists(file_path):
             print(f"Erro: O arquivo '{file_path}' não existe.")
             return
 
         filename = os.path.basename(file_path)  # Obtém o nome do arquivo
-        self.files[filename] = file_path  # Armazena apenas o caminho do arquivo
-        print(f"Arquivo '{filename}' adicionado ao peer.")
+        self.files[filename] = file_path  # Armazena o caminho do arquivo
+        print(f"Arquivo '{filename}' adicionado ao peer para compartilhamento.")
+
 
 
     def request_file(self, peer_id, filename, save_path):
@@ -207,6 +267,14 @@ class Peer:
                     if target_host and target_port:
                         target_id = f"{target_host}:{target_port}"
                         self.connect_to_peer(target_id, target_host, int(target_port))
+
+                elif command == "LIST_FILES":
+                    files_list = list(self.files.keys())  # Lista apenas os nomes dos arquivos
+                    conn.sendall(json.dumps({"files": files_list}).encode())
+
+                elif command == "BUSCAR":
+                    filename = input("Digite o nome do arquivo que deseja buscar: ").strip()
+                    self.search_file(filename)  
 
                 elif command == "DISCONNECT":
                     leaving_peer = message.get("peer_id")
