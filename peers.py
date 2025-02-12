@@ -255,10 +255,6 @@ class Peer:
 
                 if command == "CHAT":
                     print(f"Mensagem recebida: {message.get('message')}")
-
-                elif command == "LIST_FILES":
-                    files_list = list(self.files.keys())
-                    conn.sendall(json.dumps({"files": files_list}).encode())
                 
                 elif command == "CONNECT":
                     target_host = message.get("target_host")
@@ -281,7 +277,6 @@ class Peer:
                     if leaving_peer in self.connected_peers:
                         del self.connected_peers[leaving_peer]
                         print(f"[INFO] Peer {leaving_peer} foi desconectado e removido da lista de peers.")
-
 
                 elif command == "DOWNLOAD":
                     filename = message.get("filename")
