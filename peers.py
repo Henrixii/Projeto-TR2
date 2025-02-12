@@ -180,49 +180,92 @@ class Peer:
         print(f"Arquivo '{filename}' adicionado ao peer para compartilhamento.")
 
 
-
-    def request_file(self, peer_id, filename, save_path):
-        """Solicita o download de um arquivo de outro peer."""
-        if peer_id in self.connected_peers:
-            try:
-                conn = self.connected_peers[peer_id]
-                request = {"command": "DOWNLOAD", "filename": filename}
-                conn.sendall(json.dumps(request).encode())
-
-                # Primeiro, recebe e interpreta a resposta JSON com o tamanho do arquivo
-                response = conn.recv(1024).decode()
-                if not response:
-                    print("Erro: Resposta vazia recebida.")
-                    return
-
-                try:
-                    data = json.loads(response)
-                except json.JSONDecodeError:
-                    print("Erro: Resposta inválida recebida (não é JSON).")
-                    return
-
-                if data.get("status") == "success":
-                    file_size = data.get("size")
-                    print(f"Iniciando download do arquivo '{filename}' ({file_size} bytes)...")
-
-                    # Agora, recebe o conteúdo do arquivo
-                    with open(os.path.join(save_path, filename), "wb") as f:
-                        remaining = file_size
-                        while remaining > 0:
-                            chunk = conn.recv(min(1024, remaining))
-                            if not chunk:
-                                break
-                            f.write(chunk)
-                            remaining -= len(chunk)
-
-                    print(f"Download concluído: '{filename}' salvo em {save_path}")
-                else:
-                    print(f"Erro ao baixar arquivo: {data.get('message')}")
-
-            except Exception as e:
-                print(f"Erro ao solicitar arquivo do peer {peer_id}: {e}")
-        else:
+    def request_file(self, peer_id, filename, save_path, num_connections=1):
+        """
+        Solicita o download de um arquivo de outro peer.
+        Se `num_connections` for maior que 1, usa múltiplas conexões paralelas.
+        """
+        if num_connections > 1:
+            return self.request_file_parallel(peer_id, filename, save_path, num_connections)
+        
+        if peer_id not in self.connected_peers:
             print(f"Peer {peer_id} não está conectado.")
+            return
+
+        conn = self.connected_peers[peer_id]
+        request = {"command": "DOWNLOAD", "filename": filename}
+        conn.sendall(json.dumps(request).encode())
+        
+        with open(os.path.join(save_path, filename), "wb") as f:
+            while True:
+                chunk = conn.recv(1024)
+                if not chunk:
+                    break
+                f.write(chunk)
+        
+        print(f"Download concluído para {filename} usando 1 conexão.")
+    
+    def request_file_parallel(self, peer_id, filename, save_path, num_connections):
+        """
+        Solicita o download de um arquivo de outro peer usando múltiplas conexões.
+        Divide o arquivo em partes e baixa simultaneamente.
+        """
+        if peer_id not in self.connected_peers:
+            print(f"Peer {peer_id} não está conectado.")
+            return
+
+        conn = self.connected_peers[peer_id]
+        request = {"command": "DOWNLOAD_INFO", "filename": filename}
+        conn.sendall(json.dumps(request).encode())
+        response = json.loads(conn.recv(1024).decode())
+
+        if response.get("status") != "success":
+            print(f"Erro ao obter informações do arquivo: {response.get('message')}")
+            return
+
+        file_size = response["size"]
+        part_size = file_size // num_connections
+        threads = []
+        start_time = time.time()
+
+        with open(os.path.join(save_path, filename), "wb") as f:
+            f.truncate(file_size)  # Pré-aloca espaço para evitar fragmentação
+
+        def download_part(part_index, start, end):
+            """Baixa uma parte do arquivo."""
+            peer_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peer_conn.connect((peer_id.split(":")[0], int(peer_id.split(":")[1])))
+            request = {
+                "command": "DOWNLOAD_PART",
+                "filename": filename,
+                "start": start,
+                "end": end
+            }
+            peer_conn.sendall(json.dumps(request).encode())
+            
+            with open(os.path.join(save_path, filename), "r+b") as f:
+                f.seek(start)
+                remaining = end - start
+                while remaining > 0:
+                    chunk = peer_conn.recv(min(1024, remaining))
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    remaining -= len(chunk)
+            peer_conn.close()
+
+        for i in range(num_connections):
+            start = i * part_size
+            end = file_size if i == num_connections - 1 else (i + 1) * part_size
+            thread = threading.Thread(target=download_part, args=(i, start, end))
+            threads.append(thread)
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
+        total_time = time.time() - start_time
+        print(f"Download concluído em {total_time:.2f} segundos usando {num_connections} conexões.")
 
 
 
